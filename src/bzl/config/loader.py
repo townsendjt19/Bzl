@@ -1,0 +1,73 @@
+from pathlib import Path
+from typing import Any
+
+import yaml
+from pydantic import ValidationError
+
+from bzl.models.project import ProjectConfig, ProjectsFile
+
+
+class ConfigError(Exception):
+    """Raised for any problem loading or validating Bzl config files."""
+
+
+def _read_yaml(path: Path) -> dict[str, Any]:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise ConfigError(f"config file not found: {path}") from exc
+    try:
+        data = yaml.safe_load(raw) or {}
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"invalid YAML in {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError(f"expected a mapping at the top level of {path}")
+    return data
+
+
+def load_projects_file(path: Path) -> ProjectsFile:
+    """Load and validate the committed projects.yaml. Secrets are not allowed here."""
+    data = _read_yaml(path)
+    for entry in data.get("projects", []):
+        if isinstance(entry, dict) and entry.get("environment"):
+            raise ConfigError(
+                f"{path} must not set 'environment' for project "
+                f"{entry.get('name', '<unknown>')!r} — use projects.local.yaml instead"
+            )
+    try:
+        return ProjectsFile.model_validate(data)
+    except ValidationError as exc:
+        raise ConfigError(f"invalid projects file {path}: {exc}") from exc
+
+
+def load_local_overrides(path: Path) -> dict[str, dict[str, str]]:
+    """Load the gitignored local overlay, keyed by project name -> environment dict.
+
+    Missing file means "no overrides" — this is not an error.
+    """
+    if not path.exists():
+        return {}
+    data = _read_yaml(path)
+    overrides: dict[str, dict[str, str]] = {}
+    for name, entry in data.get("projects", {}).items():
+        if not isinstance(entry, dict):
+            raise ConfigError(f"{path}: entry for {name!r} must be a mapping")
+        unexpected = set(entry.keys()) - {"environment"}
+        if unexpected:
+            raise ConfigError(
+                f"{path}: project {name!r} may only set 'environment', got extra keys {unexpected}"
+            )
+        overrides[name] = dict(entry.get("environment", {}))
+    return overrides
+
+
+def load_merged_projects(configs_dir: Path) -> ProjectsFile:
+    """Load projects.yaml and merge in environment overrides from projects.local.yaml."""
+    projects_file = load_projects_file(configs_dir / "projects.yaml")
+    overrides = load_local_overrides(configs_dir / "projects.local.yaml")
+
+    merged: list[ProjectConfig] = []
+    for project in projects_file.projects:
+        env = overrides.get(project.name, {})
+        merged.append(project.model_copy(update={"environment": env}))
+    return ProjectsFile(projects=merged)

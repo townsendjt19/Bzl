@@ -1,0 +1,20 @@
+#top-row {
+    height: auto;
+}
+
+#project-panel, #git-panel {
+    width: 1fr;
+    border: solid $primary;
+    padding: 1;
+}
+
+#providers-panel {
+    height: auto;
+    border: solid $primary;
+    padding: 1;
+}
+
+#activity-log {
+    height: 1fr;
+    border: solid $primary;
+}

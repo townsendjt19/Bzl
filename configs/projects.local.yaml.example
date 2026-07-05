@@ -1,0 +1,7 @@
+# Copy this file to projects.local.yaml (gitignored) to set per-project
+# environment variables / secrets. Keys here must match a project "name"
+# in projects.yaml. Only "environment" may be set per project.
+projects:
+  bzl:
+    environment:
+      EXAMPLE_API_KEY: "replace-me"

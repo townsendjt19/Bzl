@@ -1,0 +1,7 @@
+projects:
+  - name: bzl
+    description: Bzl itself — the terminal command center you're running.
+    path: D:\bzl
+    tags: [python, textual, tooling]
+    startup_commands: []
+    preferred_provider: claude_code
