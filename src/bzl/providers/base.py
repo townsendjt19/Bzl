@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from bzl.models.provider import ProviderMessage, ProviderResponse
@@ -11,9 +12,17 @@ class AIProvider(Protocol):
     name: str
 
     async def send_message(
-        self, message: str, *, context: list[ProviderMessage] | None = None
+        self,
+        message: str,
+        *,
+        context: list[ProviderMessage] | None = None,
+        cwd: Path | None = None,
     ) -> ProviderResponse: ...
 
     def stream_response(
-        self, message: str, *, context: list[ProviderMessage] | None = None
+        self,
+        message: str,
+        *,
+        context: list[ProviderMessage] | None = None,
+        cwd: Path | None = None,
     ) -> AsyncIterator[str]: ...

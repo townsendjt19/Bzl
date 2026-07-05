@@ -1,5 +1,6 @@
 import json
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import httpx
 
@@ -32,7 +33,11 @@ class OllamaProvider:
         return httpx.AsyncClient(transport=self._transport, timeout=30)
 
     async def send_message(
-        self, message: str, *, context: list[ProviderMessage] | None = None
+        self,
+        message: str,
+        *,
+        context: list[ProviderMessage] | None = None,
+        cwd: Path | None = None,
     ) -> ProviderResponse:
         payload = {
             "model": self.model,
@@ -52,7 +57,11 @@ class OllamaProvider:
         return ProviderResponse(content=content, provider=self.name, stub=False)
 
     async def stream_response(
-        self, message: str, *, context: list[ProviderMessage] | None = None
+        self,
+        message: str,
+        *,
+        context: list[ProviderMessage] | None = None,
+        cwd: Path | None = None,
     ) -> AsyncIterator[str]:
         payload = {
             "model": self.model,

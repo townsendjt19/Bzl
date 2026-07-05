@@ -32,9 +32,17 @@ class FakeProvider:
 
     name = "ollama"
 
+    def __init__(self) -> None:
+        self.last_cwd = None
+
     async def send_message(
-        self, message: str, *, context: list[ProviderMessage] | None = None
+        self,
+        message: str,
+        *,
+        context: list[ProviderMessage] | None = None,
+        cwd=None,
     ) -> ProviderResponse:
+        self.last_cwd = cwd
         history_len = len(context or [])
         return ProviderResponse(
             content=f"[fake:{self.name}] history={history_len} received: {message}",
@@ -43,8 +51,13 @@ class FakeProvider:
         )
 
     async def stream_response(
-        self, message: str, *, context: list[ProviderMessage] | None = None
+        self,
+        message: str,
+        *,
+        context: list[ProviderMessage] | None = None,
+        cwd=None,
     ) -> AsyncIterator[str]:
+        self.last_cwd = cwd
         yield f"[fake:{self.name}] {message}"
 
 
@@ -73,6 +86,7 @@ def ctx(tmp_path):
             ProjectConfig(
                 name="auto", path=str(other_dir), startup_commands=["echo hello-startup"]
             ),
+            ProjectConfig(name="broken", path=str(tmp_path / "does_not_exist")),
         ]
     )
     provider_registry = ProviderRegistry()
@@ -117,6 +131,18 @@ async def test_projects_lists_configured_projects(registry, ctx):
     assert "demo" in result.summary
 
 
+async def test_projects_shows_status_and_git(registry, ctx):
+    result = await registry.execute("projects", ctx)
+    assert result.execution is None
+    assert result.ai is None
+    assert "✔ demo (active)" in result.summary
+    assert "status: valid" in result.summary
+    assert "git: yes" in result.summary
+    assert "⚠ broken" in result.summary
+    assert "status: invalid" in result.summary
+    assert "does not exist" in result.summary
+
+
 async def test_exit_signals_should_exit(registry, ctx):
     result = await registry.execute("exit", ctx)
     assert result.should_exit is True
@@ -140,6 +166,13 @@ async def test_chat_returns_provider_response(registry, ctx):
     assert "history=0" in result.ai
     assert result.summary == "received response from ollama"
     assert any("sent message to provider" in line for line in result.execution)
+
+
+async def test_chat_passes_active_project_path_as_cwd(registry, ctx):
+    await registry.execute("chat hello there", ctx)
+    provider = ctx.provider_registry.default_provider(ctx.active_project.preferred_provider)
+    expected_path, _exists = ctx.project_service.resolve_path(ctx.active_project)
+    assert provider.last_cwd == expected_path
 
 
 async def test_chat_feeds_prior_turns_as_history(registry, ctx):
@@ -187,11 +220,19 @@ async def test_switch_records_recent_project(registry, ctx):
     assert ctx.state_service.state.recent_projects == ["other"]
 
 
-async def test_switch_unknown_project_raises(registry, ctx):
-    from bzl.services.project_service import ProjectNotFoundError
+async def test_switch_unknown_project_returns_clean_result(registry, ctx):
+    result = await registry.execute("switch bogus", ctx)
+    assert "no project named" in result.summary
+    assert ctx.active_project.name == "demo"
 
-    with pytest.raises(ProjectNotFoundError):
-        await registry.execute("switch bogus", ctx)
+
+async def test_switch_invalid_project_is_refused(registry, ctx):
+    original_cwd = ctx.git_service.cwd
+    result = await registry.execute("switch broken", ctx)
+    assert "cannot switch to" in result.summary
+    assert "does not exist" in result.summary
+    assert ctx.active_project.name == "demo"
+    assert ctx.git_service.cwd == original_cwd
 
 
 async def test_recent_lists_switched_projects(registry, ctx):

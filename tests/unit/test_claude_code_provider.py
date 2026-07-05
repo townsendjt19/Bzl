@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from bzl.models.provider import ProviderMessage
 from bzl.providers.claude_code_provider import ClaudeCodeProvider
 
@@ -71,3 +73,17 @@ async def test_stream_response_yields_full_response():
     provider = ClaudeCodeProvider(run_subprocess=runner)
     chunks = [chunk async for chunk in provider.stream_response("hi")]
     assert chunks == ["streamed"]
+
+
+async def test_send_message_passes_cwd_to_subprocess():
+    runner = _runner(stdout=b"ok")
+    provider = ClaudeCodeProvider(run_subprocess=runner)
+    await provider.send_message("hi", cwd=Path("/some/project"))
+    assert runner.captured["kwargs"]["cwd"] == str(Path("/some/project"))
+
+
+async def test_send_message_defaults_cwd_to_none():
+    runner = _runner(stdout=b"ok")
+    provider = ClaudeCodeProvider(run_subprocess=runner)
+    await provider.send_message("hi")
+    assert runner.captured["kwargs"]["cwd"] is None

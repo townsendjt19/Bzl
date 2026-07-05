@@ -1,5 +1,6 @@
 from bzl.commands.registry import CommandContext, CommandRegistry, CommandResult
 from bzl.models.provider import ProviderMessage
+from bzl.services.project_service import ProjectNotFoundError
 
 
 def _memory_context(ctx: CommandContext, project_name: str) -> list[ProviderMessage]:
@@ -35,17 +36,30 @@ def register_all(registry: CommandRegistry) -> None:
             summary=(f"project: {project.name}\n" f"git: {git_line}\n" f"providers: {providers}")
         )
 
-    @registry.command("projects", "List configured projects")
+    @registry.command("projects", "List configured projects and their status")
     async def projects_command(ctx: CommandContext, args: list[str]) -> CommandResult:
-        projects = ctx.project_service.list_projects()
-        if not projects:
+        statuses = ctx.project_service.list_with_status()
+        if not statuses:
             return CommandResult(summary="no projects configured")
         active = ctx.active_project
-        lines = [
-            f"{'*' if active and p.name == active.name else ' '} {p.name} — {p.path}"
-            for p in projects
-        ]
-        return CommandResult(summary="\n".join(lines))
+        projects_by_name = {p.name: p for p in ctx.project_service.list_projects()}
+
+        blocks = []
+        for s in statuses:
+            project = projects_by_name[s.name]
+            icon = "✔" if s.status == "valid" else "⚠"
+            marker = " (active)" if active and s.name == active.name else ""
+            lines = [f"{icon} {s.name}{marker}", f"   path: {s.path}"]
+            if s.status == "invalid":
+                lines.append(f"   status: invalid ({s.reason})")
+            else:
+                lines.append("   status: valid")
+                lines.append(f"   git: {'yes' if s.is_git else 'no'}")
+            lines.append(f"   provider: {project.preferred_provider or '(none)'}")
+            lines.append(f"   startup_commands: {len(project.startup_commands)}")
+            blocks.append("\n".join(lines))
+
+        return CommandResult(summary="\n\n".join(blocks))
 
     @registry.command("config", "Show the active project's resolved config")
     async def config_command(ctx: CommandContext, args: list[str]) -> CommandResult:
@@ -77,11 +91,15 @@ def register_all(registry: CommandRegistry) -> None:
         prior_history = ctx.conversation_service.get_history(project.name, provider.name)
         context = _memory_context(ctx, project.name) + prior_history
 
+        path, exists = ctx.project_service.resolve_path(project)
+        if not exists:
+            return CommandResult(summary=f"project path does not exist: {path}")
+
         execution = [
             f"loaded {len(prior_history)} prior turn(s) for {project.name}::{provider.name}",
             f"sent message to provider '{provider.name}'",
         ]
-        response = await provider.send_message(message, context=context)
+        response = await provider.send_message(message, context=context, cwd=path)
 
         ctx.conversation_service.append_turn(project.name, provider.name, "user", message)
         ctx.conversation_service.append_turn(
@@ -124,6 +142,9 @@ def register_all(registry: CommandRegistry) -> None:
             return CommandResult(summary="no changes to review")
 
         provider = ctx.provider_registry.default_provider(project.preferred_provider)
+        path, exists = ctx.project_service.resolve_path(project)
+        if not exists:
+            return CommandResult(summary=f"project path does not exist: {path}")
         memory = _memory_context(ctx, project.name)
         memory_block = f"{memory[0].content}\n\n" if memory else ""
         prompt = (
@@ -134,7 +155,7 @@ def register_all(registry: CommandRegistry) -> None:
             f"computed working-tree diff ({len(diff.splitlines())} line(s))",
             f"sent diff to provider '{provider.name}' for review",
         ]
-        response = await provider.send_message(prompt)
+        response = await provider.send_message(prompt, cwd=path)
 
         return CommandResult(
             execution=execution,
@@ -156,6 +177,9 @@ def register_all(registry: CommandRegistry) -> None:
             return CommandResult(summary="nothing to commit")
 
         provider = ctx.provider_registry.default_provider(project.preferred_provider)
+        path, exists = ctx.project_service.resolve_path(project)
+        if not exists:
+            return CommandResult(summary=f"project path does not exist: {path}")
         prompt = (
             "Write a single-line git commit message, imperative mood, no quotes, "
             f"summarizing this diff:\n\n{diff}"
@@ -165,7 +189,7 @@ def register_all(registry: CommandRegistry) -> None:
             f"computed staged diff ({len(diff.splitlines())} line(s))",
             f"sent staged diff to provider '{provider.name}' for commit message generation",
         ]
-        response = await provider.send_message(prompt)
+        response = await provider.send_message(prompt, cwd=path)
 
         lines = [line.strip("\"'` ") for line in response.content.splitlines() if line.strip()]
         message = lines[0] if lines else "update"
@@ -208,16 +232,23 @@ def register_all(registry: CommandRegistry) -> None:
         if not args:
             return CommandResult(summary="usage: switch <project-name>")
         name = args[0]
+        try:
+            project = ctx.project_service.get_project(name)
+        except ProjectNotFoundError as exc:
+            return CommandResult(summary=str(exc))
+
+        status = ctx.project_service.validate(project)
+        if status.status == "invalid":
+            return CommandResult(summary=f"cannot switch to {name!r}: {status.reason}")
+
         ctx.project_service.select_project(name)
-        project = ctx.project_service.get_project(name)
-        path, _exists = ctx.project_service.resolve_path(project)
-        ctx.git_service.set_cwd(path)
+        ctx.git_service.set_cwd(status.path)
         ctx.state_service.record_project_switch(name)
 
         execution: list[str] | None = None
         if project.startup_commands:
             execution = ctx.automation_service.run_startup_commands(
-                project.startup_commands, path
+                project.startup_commands, status.path
             )
 
         return CommandResult(execution=execution, summary=f"switched to {name}")

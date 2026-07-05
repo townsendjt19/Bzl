@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
+from pathlib import Path
 
 from bzl.models.provider import ProviderMessage, ProviderResponse
 
@@ -26,7 +27,11 @@ class ClaudeCodeProvider:
         self._run_subprocess = run_subprocess
 
     async def send_message(
-        self, message: str, *, context: list[ProviderMessage] | None = None
+        self,
+        message: str,
+        *,
+        context: list[ProviderMessage] | None = None,
+        cwd: Path | None = None,
     ) -> ProviderResponse:
         prompt = _build_prompt(context, message)
         try:
@@ -36,6 +41,7 @@ class ClaudeCodeProvider:
                 prompt,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                cwd=str(cwd) if cwd is not None else None,
             )
             stdout, stderr = await process.communicate()
         except FileNotFoundError:
@@ -49,7 +55,11 @@ class ClaudeCodeProvider:
         return ProviderResponse(content=stdout.decode().strip(), provider=self.name, stub=False)
 
     async def stream_response(
-        self, message: str, *, context: list[ProviderMessage] | None = None
+        self,
+        message: str,
+        *,
+        context: list[ProviderMessage] | None = None,
+        cwd: Path | None = None,
     ) -> AsyncIterator[str]:
-        response = await self.send_message(message, context=context)
+        response = await self.send_message(message, context=context, cwd=cwd)
         yield response.content
