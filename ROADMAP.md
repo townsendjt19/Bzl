@@ -26,9 +26,9 @@
 ---
 
 ## v0.4.0
-- [ ] Code review workflows
-- [ ] Git automation
-- [ ] AI project memory
+- [x] Code review workflows
+- [x] Git automation
+- [x] AI project memory
 
 ---
 

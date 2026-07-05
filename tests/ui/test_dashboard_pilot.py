@@ -1,12 +1,15 @@
 from bzl.commands.registry import CommandContext
 from bzl.core.bootstrap import build_command_registry
 from bzl.models.conversation import ConversationsFile
+from bzl.models.memory import MemoryFile
 from bzl.models.project import ProjectConfig, ProjectsFile
 from bzl.models.state import AppState
 from bzl.providers.ollama_provider import OllamaProvider
 from bzl.services.activity_log_service import ActivityLogService
+from bzl.services.automation_service import AutomationService
 from bzl.services.conversation_service import ConversationService
 from bzl.services.git_service import GitService
+from bzl.services.memory_service import MemoryService
 from bzl.services.project_service import ProjectService
 from bzl.services.provider_registry import ProviderRegistry
 from bzl.services.state_service import StateService
@@ -29,6 +32,8 @@ def _build_test_app(tmp_path) -> BzlApp:
         conversation_service=ConversationService(
             ConversationsFile(), tmp_path / "conversations.local.yaml"
         ),
+        memory_service=MemoryService(MemoryFile(), tmp_path / "memory.local.yaml"),
+        automation_service=AutomationService(),
         logger=__import__("logging").getLogger("test"),
     )
     return BzlApp(ctx=ctx, command_registry=build_command_registry())

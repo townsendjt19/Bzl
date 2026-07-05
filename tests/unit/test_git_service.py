@@ -92,3 +92,48 @@ def test_get_status_unexpected_error_raises(git_service):
     with patch("subprocess.run", side_effect=responses):
         with pytest.raises(GitCommandError):
             git_service.get_status()
+
+
+def test_get_diff_not_a_repo(git_service):
+    with patch("subprocess.run", return_value=_completed(returncode=128)):
+        assert git_service.get_diff() == ""
+
+
+def test_get_diff_returns_diff_text(git_service):
+    responses = [_completed(returncode=0), _completed(returncode=0, stdout="diff --git a b\n")]
+    with patch("subprocess.run", side_effect=responses):
+        assert git_service.get_diff() == "diff --git a b\n"
+
+
+def test_get_diff_falls_back_to_staged_when_no_head(git_service):
+    responses = [
+        _completed(returncode=0),
+        _completed(returncode=128, stderr="fatal: ambiguous argument 'HEAD'"),
+        _completed(returncode=0),
+        _completed(returncode=0, stdout="diff --git a b\n"),
+    ]
+    with patch("subprocess.run", side_effect=responses):
+        assert git_service.get_diff() == "diff --git a b\n"
+
+
+def test_get_staged_diff_returns_diff_text(git_service):
+    responses = [_completed(returncode=0), _completed(returncode=0, stdout="staged diff\n")]
+    with patch("subprocess.run", side_effect=responses):
+        assert git_service.get_staged_diff() == "staged diff\n"
+
+
+def test_stage_all_raises_on_failure(git_service):
+    with patch("subprocess.run", return_value=_completed(returncode=1, stderr="boom")):
+        with pytest.raises(GitCommandError):
+            git_service.stage_all()
+
+
+def test_commit_raises_on_failure(git_service):
+    with patch("subprocess.run", return_value=_completed(returncode=1, stderr="boom")):
+        with pytest.raises(GitCommandError):
+            git_service.commit("a message")
+
+
+def test_commit_succeeds(git_service):
+    with patch("subprocess.run", return_value=_completed(returncode=0)):
+        git_service.commit("a message")

@@ -1,4 +1,13 @@
 from bzl.commands.registry import CommandContext, CommandRegistry, CommandResult
+from bzl.models.provider import ProviderMessage
+
+
+def _memory_context(ctx: CommandContext, project_name: str) -> list[ProviderMessage]:
+    notes = ctx.memory_service.get_notes(project_name)
+    if not notes:
+        return []
+    notes_block = "\n".join(f"- {note}" for note in notes)
+    return [ProviderMessage(role="system", content=f"Project memory notes:\n{notes_block}")]
 
 
 def register_all(registry: CommandRegistry) -> None:
@@ -65,7 +74,9 @@ def register_all(registry: CommandRegistry) -> None:
 
         preferred = project.preferred_provider
         provider = ctx.provider_registry.default_provider(preferred)
-        history = ctx.conversation_service.get_history(project.name, provider.name)
+        history = _memory_context(ctx, project.name) + ctx.conversation_service.get_history(
+            project.name, provider.name
+        )
         response = await provider.send_message(message, context=history)
 
         ctx.conversation_service.append_turn(project.name, provider.name, "user", message)
@@ -90,6 +101,77 @@ def register_all(registry: CommandRegistry) -> None:
             return CommandResult(message="no conversation history yet")
         return CommandResult(message="\n".join(f"{t.role}: {t.content}" for t in turns))
 
+    @registry.command("review", "Request an AI code review of the working tree diff")
+    async def review_command(ctx: CommandContext, args: list[str]) -> CommandResult:
+        project = ctx.active_project
+        if project is None:
+            return CommandResult(message="no active project")
+        if not ctx.git_service.is_git_repo():
+            return CommandResult(message="not a git repository")
+
+        diff = ctx.git_service.get_diff()
+        if not diff.strip():
+            return CommandResult(message="no changes to review")
+
+        provider = ctx.provider_registry.default_provider(project.preferred_provider)
+        memory = _memory_context(ctx, project.name)
+        memory_block = f"{memory[0].content}\n\n" if memory else ""
+        prompt = (
+            f"{memory_block}Review the following git diff. Point out bugs, risks, "
+            f"and improvements:\n\n{diff}"
+        )
+        response = await provider.send_message(prompt)
+        return CommandResult(message=response.content)
+
+    @registry.command("commit", "Stage all changes and commit with an AI-generated message")
+    async def commit_command(ctx: CommandContext, args: list[str]) -> CommandResult:
+        project = ctx.active_project
+        if project is None:
+            return CommandResult(message="no active project")
+        if not ctx.git_service.is_git_repo():
+            return CommandResult(message="not a git repository")
+
+        ctx.git_service.stage_all()
+        diff = ctx.git_service.get_staged_diff()
+        if not diff.strip():
+            return CommandResult(message="nothing to commit")
+
+        provider = ctx.provider_registry.default_provider(project.preferred_provider)
+        prompt = (
+            "Write a single-line git commit message, imperative mood, no quotes, "
+            f"summarizing this diff:\n\n{diff}"
+        )
+        response = await provider.send_message(prompt)
+        lines = [line.strip("\"'` ") for line in response.content.splitlines() if line.strip()]
+        message = lines[0] if lines else "update"
+        ctx.git_service.commit(message)
+        return CommandResult(message=f"committed: {message}")
+
+    @registry.command("memory", "Show, add, or clear the active project's AI memory notes")
+    async def memory_command(ctx: CommandContext, args: list[str]) -> CommandResult:
+        project = ctx.active_project
+        if project is None:
+            return CommandResult(message="no active project")
+
+        if not args:
+            notes = ctx.memory_service.get_notes(project.name)
+            if not notes:
+                return CommandResult(message="no memory notes yet")
+            return CommandResult(message="\n".join(f"- {n}" for n in notes))
+
+        if args[0] == "clear":
+            ctx.memory_service.clear(project.name)
+            return CommandResult(message="memory cleared")
+
+        if args[0] == "add":
+            note = " ".join(args[1:])
+            if not note:
+                return CommandResult(message="usage: memory add <note>")
+            ctx.memory_service.add_note(project.name, note)
+            return CommandResult(message="memory note added")
+
+        return CommandResult(message="usage: memory [add <note>|clear]")
+
     @registry.command("switch", "Switch the active project", aliases=("use",))
     async def switch_command(ctx: CommandContext, args: list[str]) -> CommandResult:
         if not args:
@@ -100,6 +182,12 @@ def register_all(registry: CommandRegistry) -> None:
         path, _exists = ctx.project_service.resolve_path(project)
         ctx.git_service.set_cwd(path)
         ctx.state_service.record_project_switch(name)
+
+        if project.startup_commands:
+            results = ctx.automation_service.run_startup_commands(project.startup_commands, path)
+            for line in results:
+                ctx.activity_log.add("automation", line)
+
         return CommandResult(message=f"switched to {name}")
 
     @registry.command("recent", "List recently switched-to projects")

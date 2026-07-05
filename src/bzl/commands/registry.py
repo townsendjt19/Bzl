@@ -4,8 +4,10 @@ from dataclasses import dataclass
 
 from bzl.models.project import ProjectConfig
 from bzl.services.activity_log_service import ActivityLogService
+from bzl.services.automation_service import AutomationService
 from bzl.services.conversation_service import ConversationService
 from bzl.services.git_service import GitService
+from bzl.services.memory_service import MemoryService
 from bzl.services.project_service import ProjectService
 from bzl.services.provider_registry import ProviderRegistry
 from bzl.services.state_service import StateService
@@ -25,6 +27,8 @@ class CommandContext:
     activity_log: ActivityLogService
     state_service: StateService
     conversation_service: ConversationService
+    memory_service: MemoryService
+    automation_service: AutomationService
     logger: logging.Logger
 
     @property

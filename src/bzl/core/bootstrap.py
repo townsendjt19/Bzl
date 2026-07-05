@@ -5,6 +5,7 @@ from bzl.commands import builtin, stubs
 from bzl.commands.registry import CommandContext, CommandRegistry
 from bzl.config.loader import (
     load_conversations,
+    load_memory,
     load_merged_projects,
     load_providers_config,
     load_state,
@@ -12,6 +13,7 @@ from bzl.config.loader import (
 from bzl.config.paths import (
     resolve_configs_dir,
     resolve_conversations_file,
+    resolve_memory_file,
     resolve_providers_config_file,
     resolve_state_file,
 )
@@ -20,8 +22,10 @@ from bzl.providers.chatgpt_provider import ChatGPTProvider
 from bzl.providers.claude_code_provider import ClaudeCodeProvider
 from bzl.providers.ollama_provider import OllamaProvider
 from bzl.services.activity_log_service import ActivityLogService
+from bzl.services.automation_service import AutomationService
 from bzl.services.conversation_service import ConversationService
 from bzl.services.git_service import GitService
+from bzl.services.memory_service import MemoryService
 from bzl.services.project_service import ProjectNotFoundError, ProjectService
 from bzl.services.provider_registry import ProviderRegistry
 from bzl.services.state_service import StateService
@@ -38,6 +42,7 @@ def build_context() -> CommandContext:
     This is the piece that must work headlessly before any UI is touched.
     """
     configure_logging()
+    activity_log = ActivityLogService()
 
     configs_dir = resolve_configs_dir()
     projects_file = load_merged_projects(configs_dir)
@@ -55,6 +60,11 @@ def build_context() -> CommandContext:
     git_cwd = project_service.resolve_path(active)[0] if active else configs_dir.parent
     git_service = GitService(cwd=git_cwd)
 
+    automation_service = AutomationService()
+    if active is not None and active.startup_commands:
+        for line in automation_service.run_startup_commands(active.startup_commands, git_cwd):
+            activity_log.add("automation", line)
+
     providers_config = load_providers_config(resolve_providers_config_file())
     provider_registry = ProviderRegistry()
     for provider in (
@@ -64,9 +74,10 @@ def build_context() -> CommandContext:
     ):
         provider_registry.register(provider)
 
-    activity_log = ActivityLogService()
     conversations = load_conversations(resolve_conversations_file())
     conversation_service = ConversationService(conversations, resolve_conversations_file())
+    memory = load_memory(resolve_memory_file())
+    memory_service = MemoryService(memory, resolve_memory_file())
 
     return CommandContext(
         project_service=project_service,
@@ -75,6 +86,8 @@ def build_context() -> CommandContext:
         activity_log=activity_log,
         state_service=state_service,
         conversation_service=conversation_service,
+        memory_service=memory_service,
+        automation_service=automation_service,
         logger=logger,
     )
 

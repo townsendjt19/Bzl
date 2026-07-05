@@ -2,10 +2,6 @@ from bzl.commands.registry import CommandContext, CommandRegistry, CommandResult
 
 
 def register_all(registry: CommandRegistry) -> None:
-    @registry.command("review", "Request a code review from the active provider (stub)")
-    async def review_command(ctx: CommandContext, args: list[str]) -> CommandResult:
-        return CommandResult(message="review is not yet implemented")
-
     @registry.command("deploy", "Run the active project's deploy workflow (stub)")
     async def deploy_command(ctx: CommandContext, args: list[str]) -> CommandResult:
         return CommandResult(message="deploy is not yet implemented")

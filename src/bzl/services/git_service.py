@@ -88,6 +88,45 @@ class GitService:
 
         return GitStatus(is_git_repo=True, staged=staged, modified=modified, untracked=untracked)
 
+    def get_diff(self) -> str:
+        """Full working-tree diff (staged + unstaged) against HEAD."""
+        if not self.is_git_repo():
+            return ""
+
+        result = self._run(["diff", "HEAD"])
+        if result is None:
+            return ""
+        if result.returncode != 0:
+            if "ambiguous argument 'HEAD'" in result.stderr or "unknown revision" in result.stderr:
+                return self.get_staged_diff()
+            raise GitCommandError(["git", "diff", "HEAD"], result.returncode, result.stderr)
+
+        return result.stdout
+
+    def get_staged_diff(self) -> str:
+        if not self.is_git_repo():
+            return ""
+
+        result = self._run(["diff", "--cached"])
+        if result is None:
+            return ""
+        if result.returncode != 0:
+            raise GitCommandError(["git", "diff", "--cached"], result.returncode, result.stderr)
+
+        return result.stdout
+
+    def stage_all(self) -> None:
+        result = self._run(["add", "-A"])
+        if result is not None and result.returncode != 0:
+            raise GitCommandError(["git", "add", "-A"], result.returncode, result.stderr)
+
+    def commit(self, message: str) -> None:
+        result = self._run(["commit", "-m", message])
+        if result is not None and result.returncode != 0:
+            raise GitCommandError(
+                ["git", "commit", "-m", message], result.returncode, result.stderr
+            )
+
     def get_recent_log(self, n: int = 5) -> list[str]:
         if not self.is_git_repo():
             return []

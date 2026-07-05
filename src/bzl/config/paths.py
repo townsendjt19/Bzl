@@ -34,3 +34,8 @@ def resolve_providers_config_file() -> Path:
 def resolve_conversations_file() -> Path:
     """Resolve the path to the gitignored local conversation history file."""
     return resolve_configs_dir() / "conversations.local.yaml"
+
+
+def resolve_memory_file() -> Path:
+    """Resolve the path to the gitignored local AI project memory file."""
+    return resolve_configs_dir() / "memory.local.yaml"

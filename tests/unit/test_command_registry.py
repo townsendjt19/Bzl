@@ -1,4 +1,5 @@
 import logging
+import subprocess
 from collections.abc import AsyncIterator
 
 import pytest
@@ -12,12 +13,15 @@ from bzl.commands.registry import (
     DuplicateCommandError,
 )
 from bzl.models.conversation import ConversationsFile
+from bzl.models.memory import MemoryFile
 from bzl.models.project import ProjectConfig, ProjectsFile
 from bzl.models.provider import ProviderMessage, ProviderResponse
 from bzl.models.state import AppState
 from bzl.services.activity_log_service import ActivityLogService
+from bzl.services.automation_service import AutomationService
 from bzl.services.conversation_service import ConversationService
 from bzl.services.git_service import GitService
+from bzl.services.memory_service import MemoryService
 from bzl.services.project_service import ProjectService
 from bzl.services.provider_registry import ProviderRegistry
 from bzl.services.state_service import StateService
@@ -44,27 +48,46 @@ class FakeProvider:
         yield f"[fake:{self.name}] {message}"
 
 
+def _init_git_repo(path):
+    subprocess.run(["git", "init"], cwd=path, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"], cwd=path, capture_output=True
+    )
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=path, capture_output=True)
+    (path / "README.md").write_text("hello\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=path, capture_output=True, check=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=path, capture_output=True, check=True)
+
+
 @pytest.fixture
 def ctx(tmp_path):
+    demo_dir = tmp_path / "demo"
+    demo_dir.mkdir()
+    _init_git_repo(demo_dir)
     other_dir = tmp_path / "other"
     other_dir.mkdir()
     projects = ProjectsFile(
         projects=[
-            ProjectConfig(name="demo", path=str(tmp_path)),
+            ProjectConfig(name="demo", path=str(demo_dir)),
             ProjectConfig(name="other", path=str(other_dir)),
+            ProjectConfig(
+                name="auto", path=str(other_dir), startup_commands=["echo hello-startup"]
+            ),
         ]
     )
     provider_registry = ProviderRegistry()
     provider_registry.register(FakeProvider())
     return CommandContext(
         project_service=ProjectService(projects),
-        git_service=GitService(cwd=tmp_path),
+        git_service=GitService(cwd=demo_dir),
         provider_registry=provider_registry,
         activity_log=ActivityLogService(),
         state_service=StateService(AppState(), tmp_path / "state.local.yaml"),
         conversation_service=ConversationService(
             ConversationsFile(), tmp_path / "conversations.local.yaml"
         ),
+        memory_service=MemoryService(MemoryFile(), tmp_path / "memory.local.yaml"),
+        automation_service=AutomationService(),
         logger=logging.getLogger("test"),
     )
 
@@ -187,6 +210,85 @@ async def test_theme_sets_and_persists(registry, ctx):
     result = await registry.execute("theme nord", ctx)
     assert result.theme == "nord"
     assert ctx.state_service.state.theme == "nord"
+
+
+async def test_review_reports_no_changes_on_clean_repo(registry, ctx):
+    result = await registry.execute("review", ctx)
+    assert result.message == "no changes to review"
+
+
+async def test_review_sends_diff_to_provider(registry, ctx):
+    (ctx.git_service.cwd / "README.md").write_text("hello world\n", encoding="utf-8")
+    result = await registry.execute("review", ctx)
+    assert "[fake:ollama]" in result.message
+    assert "hello world" in result.message
+
+
+async def test_review_includes_memory_notes(registry, ctx):
+    (ctx.git_service.cwd / "README.md").write_text("hello world\n", encoding="utf-8")
+    ctx.memory_service.add_note("demo", "this project uses tabs, not spaces")
+    result = await registry.execute("review", ctx)
+    assert "this project uses tabs, not spaces" in result.message
+
+
+async def test_review_not_a_git_repo(registry, ctx):
+    other_path, _exists = ctx.project_service.resolve_path(ctx.project_service.get_project("other"))
+    ctx.git_service.set_cwd(other_path)
+    result = await registry.execute("review", ctx)
+    assert result.message == "not a git repository"
+
+
+async def test_commit_reports_nothing_to_commit_on_clean_repo(registry, ctx):
+    result = await registry.execute("commit", ctx)
+    assert result.message == "nothing to commit"
+
+
+async def test_commit_stages_and_commits_with_generated_message(registry, ctx):
+    (ctx.git_service.cwd / "new_file.py").write_text("print('hi')\n", encoding="utf-8")
+    log_before = ctx.git_service.get_recent_log()
+
+    result = await registry.execute("commit", ctx)
+
+    assert result.message.startswith("committed: [fake:ollama]")
+    log_after = ctx.git_service.get_recent_log()
+    assert len(log_after) == len(log_before) + 1
+    assert ctx.git_service.get_status().is_clean
+
+
+async def test_memory_empty_by_default(registry, ctx):
+    result = await registry.execute("memory", ctx)
+    assert "no memory notes yet" in result.message
+
+
+async def test_memory_add_and_list(registry, ctx):
+    await registry.execute("memory add uses pydantic v2", ctx)
+    result = await registry.execute("memory", ctx)
+    assert "uses pydantic v2" in result.message
+
+
+async def test_memory_add_without_note_shows_usage(registry, ctx):
+    result = await registry.execute("memory add", ctx)
+    assert "usage" in result.message
+
+
+async def test_memory_clear_empties_it(registry, ctx):
+    await registry.execute("memory add uses pydantic v2", ctx)
+    await registry.execute("memory clear", ctx)
+    result = await registry.execute("memory", ctx)
+    assert "no memory notes yet" in result.message
+
+
+async def test_memory_is_injected_into_chat_context(registry, ctx):
+    await registry.execute("memory add remember this fact", ctx)
+    result = await registry.execute("chat hello", ctx)
+    assert "history=1" in result.message
+
+
+async def test_switch_runs_startup_commands(registry, ctx):
+    await registry.execute("switch auto", ctx)
+    messages = [e.message for e in ctx.activity_log.all()]
+    assert any("echo hello-startup" in m for m in messages)
+    assert any("hello-startup" in m for m in messages)
 
 
 def test_duplicate_registration_raises():

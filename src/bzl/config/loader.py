@@ -5,6 +5,7 @@ import yaml
 from pydantic import ValidationError
 
 from bzl.models.conversation import ConversationsFile
+from bzl.models.memory import MemoryFile
 from bzl.models.project import ProjectConfig, ProjectsFile
 from bzl.models.provider import ProvidersConfig
 from bzl.models.state import AppState
@@ -117,3 +118,19 @@ def load_conversations(path: Path) -> ConversationsFile:
 def save_conversations(path: Path, conversations: ConversationsFile) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(conversations.model_dump()), encoding="utf-8")
+
+
+def load_memory(path: Path) -> MemoryFile:
+    """Load the gitignored local AI project memory file. Missing file means no notes."""
+    if not path.exists():
+        return MemoryFile()
+    data = _read_yaml(path)
+    try:
+        return MemoryFile.model_validate(data)
+    except ValidationError as exc:
+        raise ConfigError(f"invalid memory file {path}: {exc}") from exc
+
+
+def save_memory(path: Path, memory: MemoryFile) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(memory.model_dump()), encoding="utf-8")
