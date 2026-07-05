@@ -19,9 +19,9 @@
 ---
 
 ## v0.3.0
-- [ ] Ollama integration
-- [ ] Claude integration
-- [ ] Conversation history
+- [x] Ollama integration
+- [x] Claude integration
+- [x] Conversation history
 
 ---
 

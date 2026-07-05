@@ -54,6 +54,42 @@ def register_all(registry: CommandRegistry) -> None:
             )
         )
 
+    @registry.command("chat", "Chat with the active project's preferred AI provider")
+    async def chat_command(ctx: CommandContext, args: list[str]) -> CommandResult:
+        if not args:
+            return CommandResult(message="usage: chat <message>")
+        message = " ".join(args)
+        project = ctx.active_project
+        if project is None:
+            return CommandResult(message="no active project")
+
+        preferred = project.preferred_provider
+        provider = ctx.provider_registry.default_provider(preferred)
+        history = ctx.conversation_service.get_history(project.name, provider.name)
+        response = await provider.send_message(message, context=history)
+
+        ctx.conversation_service.append_turn(project.name, provider.name, "user", message)
+        ctx.conversation_service.append_turn(
+            project.name, provider.name, "assistant", response.content
+        )
+        return CommandResult(message=response.content)
+
+    @registry.command("history", "Show or clear the active project's conversation history")
+    async def history_command(ctx: CommandContext, args: list[str]) -> CommandResult:
+        project = ctx.active_project
+        if project is None:
+            return CommandResult(message="no active project")
+        provider = ctx.provider_registry.default_provider(project.preferred_provider)
+
+        if args and args[0] == "clear":
+            ctx.conversation_service.clear(project.name, provider.name)
+            return CommandResult(message="conversation history cleared")
+
+        turns = ctx.conversation_service.get_history(project.name, provider.name)
+        if not turns:
+            return CommandResult(message="no conversation history yet")
+        return CommandResult(message="\n".join(f"{t.role}: {t.content}" for t in turns))
+
     @registry.command("switch", "Switch the active project", aliases=("use",))
     async def switch_command(ctx: CommandContext, args: list[str]) -> CommandResult:
         if not args:

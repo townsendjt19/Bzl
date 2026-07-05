@@ -2,15 +2,6 @@ from bzl.commands.registry import CommandContext, CommandRegistry, CommandResult
 
 
 def register_all(registry: CommandRegistry) -> None:
-    @registry.command("chat", "Chat with the active project's preferred AI provider (stub)")
-    async def chat_command(ctx: CommandContext, args: list[str]) -> CommandResult:
-        message = " ".join(args) or "(no message)"
-        project = ctx.active_project
-        preferred = project.preferred_provider if project else None
-        provider = ctx.provider_registry.default_provider(preferred)
-        response = await provider.send_message(message)
-        return CommandResult(message=response.content)
-
     @registry.command("review", "Request a code review from the active provider (stub)")
     async def review_command(ctx: CommandContext, args: list[str]) -> CommandResult:
         return CommandResult(message="review is not yet implemented")

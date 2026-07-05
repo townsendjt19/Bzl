@@ -24,3 +24,13 @@ def resolve_configs_dir() -> Path:
 def resolve_state_file() -> Path:
     """Resolve the path to the gitignored local state file (recent projects, theme, ...)."""
     return resolve_configs_dir() / "state.local.yaml"
+
+
+def resolve_providers_config_file() -> Path:
+    """Resolve the path to the committed providers.yaml (Ollama host/model, Claude CLI, ...)."""
+    return resolve_configs_dir() / "providers.yaml"
+
+
+def resolve_conversations_file() -> Path:
+    """Resolve the path to the gitignored local conversation history file."""
+    return resolve_configs_dir() / "conversations.local.yaml"

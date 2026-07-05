@@ -5,6 +5,7 @@ from bzl.config.loader import (
     load_local_overrides,
     load_merged_projects,
     load_projects_file,
+    load_providers_config,
 )
 
 PROJECTS_YAML = """
@@ -97,3 +98,29 @@ def test_load_merged_projects_without_local_file(tmp_configs_dir):
     merged = load_merged_projects(tmp_configs_dir)
 
     assert all(p.environment == {} for p in merged.projects)
+
+
+def test_load_providers_config_missing_file_returns_defaults(tmp_configs_dir):
+    config = load_providers_config(tmp_configs_dir / "providers.yaml")
+    assert config.ollama.host == "http://localhost:11434"
+    assert config.ollama.model == "llama3"
+    assert config.claude_code.command == "claude"
+
+
+def test_load_providers_config_parses_overrides(tmp_configs_dir):
+    path = tmp_configs_dir / "providers.yaml"
+    path.write_text(
+        """
+ollama:
+  host: http://example.local:11434
+  model: mistral
+claude_code:
+  command: my-claude
+""",
+        encoding="utf-8",
+    )
+
+    config = load_providers_config(path)
+    assert config.ollama.host == "http://example.local:11434"
+    assert config.ollama.model == "mistral"
+    assert config.claude_code.command == "my-claude"

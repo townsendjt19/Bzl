@@ -10,3 +10,4 @@ build/
 
 configs/projects.local.yaml
 configs/state.local.yaml
+configs/conversations.local.yaml

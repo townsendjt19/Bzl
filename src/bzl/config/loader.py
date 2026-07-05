@@ -4,7 +4,9 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
+from bzl.models.conversation import ConversationsFile
 from bzl.models.project import ProjectConfig, ProjectsFile
+from bzl.models.provider import ProvidersConfig
 from bzl.models.state import AppState
 
 
@@ -88,3 +90,30 @@ def load_state(path: Path) -> AppState:
 def save_state(path: Path, state: AppState) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(state.model_dump()), encoding="utf-8")
+
+
+def load_providers_config(path: Path) -> ProvidersConfig:
+    """Load the committed providers.yaml. Missing file means all-default config."""
+    if not path.exists():
+        return ProvidersConfig()
+    data = _read_yaml(path)
+    try:
+        return ProvidersConfig.model_validate(data)
+    except ValidationError as exc:
+        raise ConfigError(f"invalid providers config {path}: {exc}") from exc
+
+
+def load_conversations(path: Path) -> ConversationsFile:
+    """Load the gitignored local conversation history file. Missing file means no history."""
+    if not path.exists():
+        return ConversationsFile()
+    data = _read_yaml(path)
+    try:
+        return ConversationsFile.model_validate(data)
+    except ValidationError as exc:
+        raise ConfigError(f"invalid conversations file {path}: {exc}") from exc
+
+
+def save_conversations(path: Path, conversations: ConversationsFile) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(conversations.model_dump()), encoding="utf-8")
