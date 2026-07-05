@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from datetime import datetime
 
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
@@ -8,6 +9,7 @@ from textual.widgets import Footer, Header
 from bzl.commands.registry import CommandContext, CommandRegistry
 from bzl.ui.widgets.activity_log import ActivityLog
 from bzl.ui.widgets.command_bar import CommandBar
+from bzl.ui.widgets.compose_modal import ComposeModal
 from bzl.ui.widgets.git_panel import GitPanel
 from bzl.ui.widgets.project_panel import ProjectPanel
 from bzl.ui.widgets.providers_panel import ProvidersPanel
@@ -76,13 +78,30 @@ class DashboardScreen(Screen[None]):
     def _refresh_activity_log(self) -> None:
         log = self.query_one("#activity-log", ActivityLog)
         lines = [
-            f"[{e.timestamp}] {e.source} [{e.section}]: {e.message}"
+            f"[{self._format_timestamp(e.timestamp)}] {e.source} [{e.section}]: {e.message}"
             for e in self.ctx.activity_log.all()
         ]
         log.show_entries(lines)
 
+    @staticmethod
+    def _format_timestamp(raw: str) -> str:
+        try:
+            return datetime.fromisoformat(raw).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return raw
+
     async def on_command_bar_command_submitted(self, event: CommandBar.CommandSubmitted) -> None:
-        text = event.text.strip()
+        await self._execute_command_text(event.text)
+
+    def on_command_bar_compose_requested(self, event: CommandBar.ComposeRequested) -> None:
+        async def handle_result(result: str | None) -> None:
+            if result is not None:
+                await self._execute_command_text(result)
+
+        self.app.push_screen(ComposeModal(event.text), handle_result)
+
+    async def _execute_command_text(self, raw_text: str) -> None:
+        text = raw_text.strip()
         if not text:
             return
 
@@ -112,6 +131,9 @@ class DashboardScreen(Screen[None]):
                 self.ctx.activity_log.add(
                     "error", f"unknown theme: {result.theme!r}", level="error"
                 )
+
+        if result.clipboard is not None:
+            self.app.copy_to_clipboard(result.clipboard)
 
         self.refresh_all()
 

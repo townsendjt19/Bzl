@@ -153,6 +153,20 @@ async def test_unknown_command_raises(registry, ctx):
         await registry.execute("bogus", ctx)
 
 
+async def test_copylast_with_no_ai_response_yet(registry, ctx):
+    result = await registry.execute("copylast", ctx)
+    assert "no AI response to copy" in result.summary
+    assert result.clipboard is None
+
+
+async def test_copylast_copies_most_recent_ai_response(registry, ctx):
+    ctx.activity_log.add("ai", "first response", section="ai")
+    ctx.activity_log.add("ai", "second response", section="ai")
+    copy_result = await registry.execute("copylast", ctx)
+    assert copy_result.clipboard == "second response"
+    assert copy_result.summary == "copied last AI response to clipboard"
+
+
 async def test_clear_empties_activity_log(registry, ctx):
     ctx.activity_log.add("test", "something happened")
     assert ctx.activity_log.all()

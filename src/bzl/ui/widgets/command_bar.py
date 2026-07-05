@@ -14,9 +14,15 @@ class CommandBar(Input):
         Binding("up", "history_prev", "Previous command", show=False),
         Binding("down", "history_next", "Next command", show=False),
         Binding("tab", "complete", "Complete command", show=False),
+        Binding("f2", "open_composer", "Multi-line editor", show=True),
     ]
 
     class CommandSubmitted(Message):
+        def __init__(self, text: str) -> None:
+            self.text = text
+            super().__init__()
+
+    class ComposeRequested(Message):
         def __init__(self, text: str) -> None:
             self.text = text
             super().__init__()
@@ -60,3 +66,6 @@ class CommandBar(Input):
         if matches:
             self.value = matches[0]
             self.cursor_position = len(self.value)
+
+    def action_open_composer(self) -> None:
+        self.post_message(self.ComposeRequested(self.value))

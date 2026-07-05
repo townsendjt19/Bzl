@@ -268,6 +268,15 @@ def register_all(registry: CommandRegistry) -> None:
         ctx.state_service.set_theme(name)
         return CommandResult(summary=f"theme set to {name}", theme=name)
 
+    @registry.command("copylast", "Copy the most recent AI response to the clipboard")
+    async def copylast_command(ctx: CommandContext, args: list[str]) -> CommandResult:
+        entry = ctx.activity_log.last(section="ai")
+        if entry is None:
+            return CommandResult(summary="no AI response to copy yet")
+        return CommandResult(
+            summary="copied last AI response to clipboard", clipboard=entry.message
+        )
+
     @registry.command("clear", "Clear the activity log")
     async def clear_command(ctx: CommandContext, args: list[str]) -> CommandResult:
         ctx.activity_log.clear()

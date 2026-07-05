@@ -68,3 +68,33 @@ async def test_unknown_command_does_not_crash_app(tmp_path):
         await pilot.press("enter")
         await pilot.pause()
         assert app.is_running
+
+
+def test_format_timestamp_converts_utc_to_local_without_offset_suffix():
+    import re
+
+    from bzl.ui.dashboard import DashboardScreen
+
+    formatted = DashboardScreen._format_timestamp("2026-07-05T12:00:00+00:00")
+    assert "+00:00" not in formatted
+    assert re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", formatted)
+
+
+async def test_f2_opens_compose_modal_and_submits_command(tmp_path):
+    app = _build_test_app(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.screen.query_one("#command-bar")
+        bar.focus()
+        await pilot.press("f2")
+        await pilot.pause()
+        assert len(app.screen_stack) == 2
+
+        text_area = app.screen.query_one("#compose-text-area")
+        text_area.text = "status"
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+
+        assert len(app.screen_stack) == 1
+        log = app.screen.query_one("#activity-log", ActivityLog)
+        assert log is not None

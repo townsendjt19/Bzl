@@ -18,3 +18,9 @@
     height: 1fr;
     border: solid $primary;
 }
+
+#command-bar > .input--cursor {
+    background: transparent;
+    color: $text;
+    text-style: underline;
+}

@@ -23,5 +23,11 @@ class ActivityLogService:
     def all(self) -> list[ActivityLogEntry]:
         return list(self._entries)
 
+    def last(self, section: str | None = None) -> ActivityLogEntry | None:
+        for entry in reversed(self._entries):
+            if section is None or entry.section == section:
+                return entry
+        return None
+
     def clear(self) -> None:
         self._entries.clear()

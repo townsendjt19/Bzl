@@ -51,6 +51,7 @@ class CommandResult:
     ai: str | None = None
     should_exit: bool = False
     theme: str | None = None
+    clipboard: str | None = None
 
 
 CommandHandler = Callable[[CommandContext, list[str]], Awaitable[CommandResult]]
