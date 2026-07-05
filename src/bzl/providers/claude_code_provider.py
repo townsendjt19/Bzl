@@ -22,7 +22,7 @@ class ClaudeCodeProvider:
         command: str = "claude",
         *,
         run_subprocess: SubprocessRunner = asyncio.create_subprocess_exec,
-        timeout: float = 120.0,
+        timeout: float = 900.0,
     ) -> None:
         self.command = command
         self._run_subprocess = run_subprocess

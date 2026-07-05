@@ -80,7 +80,7 @@ def test_format_timestamp_converts_utc_to_local_without_offset_suffix():
     assert re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", formatted)
 
 
-async def test_f2_opens_compose_modal_and_submits_command(tmp_path):
+async def test_f2_compose_confirm_populates_command_bar_without_executing(tmp_path):
     app = _build_test_app(tmp_path)
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -88,13 +88,32 @@ async def test_f2_opens_compose_modal_and_submits_command(tmp_path):
         bar.focus()
         await pilot.press("f2")
         await pilot.pause()
-        assert len(app.screen_stack) == 2
+        assert len(app.screen_stack) == 3
 
         text_area = app.screen.query_one("#compose-text-area")
         text_area.text = "status"
         await pilot.press("ctrl+s")
         await pilot.pause()
 
-        assert len(app.screen_stack) == 1
-        log = app.screen.query_one("#activity-log", ActivityLog)
-        assert log is not None
+        assert len(app.screen_stack) == 2
+        assert bar.value == "status"
+        assert bar.cursor_position == len(bar.value)
+        assert bar.has_focus
+
+
+async def test_f2_compose_multiline_text_is_flattened_in_command_bar(tmp_path):
+    app = _build_test_app(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.screen.query_one("#command-bar")
+        bar.focus()
+        await pilot.press("f2")
+        await pilot.pause()
+
+        text_area = app.screen.query_one("#compose-text-area")
+        text_area.text = "line one\nline two\nline three"
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+
+        assert "\n" not in bar.value
+        assert bar.value == "line one line two line three"

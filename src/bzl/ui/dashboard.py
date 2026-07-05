@@ -94,9 +94,9 @@ class DashboardScreen(Screen[None]):
         await self._execute_command_text(event.text)
 
     def on_command_bar_compose_requested(self, event: CommandBar.ComposeRequested) -> None:
-        async def handle_result(result: str | None) -> None:
+        def handle_result(result: str | None) -> None:
             if result is not None:
-                await self._execute_command_text(result)
+                self.query_one("#command-bar", CommandBar).set_value_and_focus(result)
 
         self.app.push_screen(ComposeModal(event.text), handle_result)
 
@@ -106,6 +106,7 @@ class DashboardScreen(Screen[None]):
             return
 
         self.ctx.activity_log.add("command", f"> {text}", section="system")
+        self._refresh_activity_log()
         try:
             result = await self.command_registry.execute(text, self.ctx)
         except Exception as exc:  # noqa: BLE001 - UI must never crash on a bad command

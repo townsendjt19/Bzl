@@ -69,3 +69,10 @@ class CommandBar(Input):
 
     def action_open_composer(self) -> None:
         self.post_message(self.ComposeRequested(self.value))
+
+    def set_value_and_focus(self, text: str) -> None:
+        # Input is single-line; embedded newlines corrupt its rendering, so
+        # flatten multi-line compose text into one line before it lands here.
+        self.value = " ".join(text.splitlines())
+        self.cursor_position = len(self.value)
+        self.focus()
