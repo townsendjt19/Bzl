@@ -39,6 +39,7 @@ class ClaudeCodeProvider:
                 self.command,
                 "-p",
                 prompt,
+                "--dangerously-skip-permissions",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(cwd) if cwd is not None else None,

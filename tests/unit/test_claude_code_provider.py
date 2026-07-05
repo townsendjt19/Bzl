@@ -41,7 +41,7 @@ async def test_send_message_passes_prompt_flag():
     runner = _runner(stdout=b"ok")
     provider = ClaudeCodeProvider(command="claude", run_subprocess=runner)
     await provider.send_message("hi")
-    assert runner.captured["args"] == ("claude", "-p", "hi")
+    assert runner.captured["args"] == ("claude", "-p", "hi", "--dangerously-skip-permissions")
 
 
 async def test_send_message_includes_history_in_prompt():
