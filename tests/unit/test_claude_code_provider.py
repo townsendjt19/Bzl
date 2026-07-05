@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 from bzl.models.provider import ProviderMessage
@@ -9,8 +10,21 @@ class FakeProcess:
         self.stdout_bytes = stdout
         self.stderr_bytes = stderr
         self.returncode = returncode
+        self.killed = False
 
     async def communicate(self) -> tuple[bytes, bytes]:
+        return self.stdout_bytes, self.stderr_bytes
+
+    def kill(self) -> None:
+        self.killed = True
+
+    async def wait(self) -> int:
+        return self.returncode
+
+
+class HangingProcess(FakeProcess):
+    async def communicate(self) -> tuple[bytes, bytes]:
+        await asyncio.sleep(3600)
         return self.stdout_bytes, self.stderr_bytes
 
 
@@ -87,3 +101,22 @@ async def test_send_message_defaults_cwd_to_none():
     provider = ClaudeCodeProvider(run_subprocess=runner)
     await provider.send_message("hi")
     assert runner.captured["kwargs"]["cwd"] is None
+
+
+async def test_send_message_passes_devnull_stdin():
+    runner = _runner(stdout=b"ok")
+    provider = ClaudeCodeProvider(run_subprocess=runner)
+    await provider.send_message("hi")
+    assert runner.captured["kwargs"]["stdin"] == asyncio.subprocess.DEVNULL
+
+
+async def test_send_message_times_out_instead_of_hanging():
+    process = HangingProcess(b"", b"", 0)
+
+    async def run_subprocess(*args, **kwargs):
+        return process
+
+    provider = ClaudeCodeProvider(run_subprocess=run_subprocess, timeout=0.05)
+    response = await provider.send_message("hi")
+    assert "timed out" in response.content
+    assert process.killed is True

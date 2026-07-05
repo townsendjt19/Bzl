@@ -22,9 +22,11 @@ class ClaudeCodeProvider:
         command: str = "claude",
         *,
         run_subprocess: SubprocessRunner = asyncio.create_subprocess_exec,
+        timeout: float = 120.0,
     ) -> None:
         self.command = command
         self._run_subprocess = run_subprocess
+        self.timeout = timeout
 
     async def send_message(
         self,
@@ -40,14 +42,24 @@ class ClaudeCodeProvider:
                 "-p",
                 prompt,
                 "--dangerously-skip-permissions",
+                stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(cwd) if cwd is not None else None,
             )
-            stdout, stderr = await process.communicate()
         except FileNotFoundError:
             return ProviderResponse(
                 content=f"{self.command!r} CLI not found on PATH", provider=self.name, stub=False
+            )
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=self.timeout)
+        except TimeoutError:
+            process.kill()
+            await process.wait()
+            return ProviderResponse(
+                content=f"claude CLI timed out after {self.timeout}s with no response",
+                provider=self.name,
+                stub=False,
             )
         if process.returncode != 0:
             return ProviderResponse(
