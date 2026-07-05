@@ -1,7 +1,27 @@
 projects:
   - name: bzl
     description: Bzl itself — the terminal command center you're running.
-    path: D:\bzl
+    path: D:\workspace\bzl
     tags: [python, textual, tooling]
+    startup_commands: []
+    preferred_provider: claude_code
+  - name: portfolio
+    description: Personal Next.js portfolio website
+    path: D:\workspace\portfolio
+    tags: [nextjs, react, web]
+    startup_commands: []
+    preferred_provider: claude_code
+
+  - name: rhyme
+    description: "needs updating"
+    path: D:\workspace\rhyme
+    tags: [python, trading, automation]
+    startup_commands: []
+    preferred_provider: claude_code
+
+  - name: rhyme_ebook
+    description: Rhyme ebook project
+    path: D:\workspace\rhyme_ebook_business
+    tags: [writing, content]
     startup_commands: []
     preferred_provider: claude_code

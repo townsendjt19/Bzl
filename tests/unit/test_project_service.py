@@ -66,3 +66,50 @@ def test_resolve_path_missing_dir(projects_file):
     service = ProjectService(projects_file)
     path, exists = service.resolve_path(service.get_project("beta"))
     assert exists is False
+
+
+def test_validate_existing_dir_is_valid(projects_file):
+    service = ProjectService(projects_file)
+    status = service.validate(service.get_project("alpha"))
+    assert status.status == "valid"
+    assert status.reason is None
+
+
+def test_validate_missing_dir_is_invalid(projects_file):
+    service = ProjectService(projects_file)
+    status = service.validate(service.get_project("beta"))
+    assert status.status == "invalid"
+    assert "does not exist" in status.reason
+
+
+def test_validate_path_that_is_a_file_is_invalid(tmp_path):
+    a_file = tmp_path / "not_a_dir.txt"
+    a_file.write_text("hi", encoding="utf-8")
+    projects = ProjectsFile(projects=[ProjectConfig(name="gamma", path=str(a_file))])
+    service = ProjectService(projects)
+    status = service.validate(service.get_project("gamma"))
+    assert status.status == "invalid"
+    assert "not a directory" in status.reason
+
+
+def test_validate_detects_git_repo(tmp_path):
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (repo_dir / ".git").mkdir()
+    projects = ProjectsFile(projects=[ProjectConfig(name="delta", path=str(repo_dir))])
+    service = ProjectService(projects)
+    status = service.validate(service.get_project("delta"))
+    assert status.status == "valid"
+    assert status.is_git is True
+
+
+def test_validate_no_git_repo(projects_file):
+    service = ProjectService(projects_file)
+    status = service.validate(service.get_project("alpha"))
+    assert status.is_git is False
+
+
+def test_list_with_status_returns_all(projects_file):
+    service = ProjectService(projects_file)
+    statuses = service.list_with_status()
+    assert {s.name: s.status for s in statuses} == {"alpha": "valid", "beta": "invalid"}
