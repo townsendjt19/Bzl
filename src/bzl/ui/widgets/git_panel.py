@@ -16,9 +16,15 @@ class GitPanel(Static):
     def show_status(
         self, branch: str, clean: bool, staged: int, modified: int, untracked: int
     ) -> None:
+        lines = ["[b]Git[/b]", f"branch: {branch}"]
         if clean:
-            glyph, color, state = CLEAN_GLYPH, TEAL, "clean"
+            lines.append(f"[{TEAL}]{CLEAN_GLYPH}[/] clean")
         else:
-            glyph, color = DIRTY_GLYPH, VIOLET
-            state = f"staged={staged} modified={modified} untracked={untracked}"
-        self.update(f"[b]Git[/b]\nbranch: {branch}\n[{color}]{glyph}[/] {state}")
+            for label, count in (
+                ("staged", staged),
+                ("modified", modified),
+                ("untracked", untracked),
+            ):
+                glyph, color = (DIRTY_GLYPH, VIOLET) if count else (CLEAN_GLYPH, TEAL)
+                lines.append(f"[{color}]{glyph}[/] {label}={count}")
+        self.update("\n".join(lines))
