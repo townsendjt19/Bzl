@@ -75,7 +75,10 @@ class DashboardScreen(Screen[None]):
 
     def _refresh_activity_log(self) -> None:
         log = self.query_one("#activity-log", ActivityLog)
-        lines = [f"[{e.timestamp}] {e.source}: {e.message}" for e in self.ctx.activity_log.all()]
+        lines = [
+            f"[{e.timestamp}] {e.source} [{e.section}]: {e.message}"
+            for e in self.ctx.activity_log.all()
+        ]
         log.show_entries(lines)
 
     async def on_command_bar_command_submitted(self, event: CommandBar.CommandSubmitted) -> None:
@@ -83,17 +86,24 @@ class DashboardScreen(Screen[None]):
         if not text:
             return
 
-        self.ctx.activity_log.add("command", f"> {text}")
+        self.ctx.activity_log.add("command", f"> {text}", section="system")
         try:
             result = await self.command_registry.execute(text, self.ctx)
         except Exception as exc:  # noqa: BLE001 - UI must never crash on a bad command
             self.ctx.logger.exception("command execution failed: %s", text)
-            self.ctx.activity_log.add("error", str(exc), level="error")
+            self.ctx.activity_log.add("error", str(exc), level="error", section="system")
             self.refresh_all()
             return
 
-        if result.message:
-            self.ctx.activity_log.add("bzl", result.message)
+        # Logged in this fixed order — execution (mechanical trace) before ai
+        # (raw provider output) before summary — so AI output never interleaves
+        # with execution traces or system log lines within a single command.
+        for line in result.execution or []:
+            self.ctx.activity_log.add("execution", line, section="execution")
+        if result.ai:
+            self.ctx.activity_log.add("ai", result.ai, section="ai")
+        if result.summary:
+            self.ctx.activity_log.add("bzl", result.summary, section="summary")
 
         if result.theme:
             try:

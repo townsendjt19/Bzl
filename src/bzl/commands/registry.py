@@ -38,7 +38,17 @@ class CommandContext:
 
 @dataclass
 class CommandResult:
-    message: str
+    """Every command returns exactly this, in this order of meaning:
+
+    execution — mechanical trace of deterministic steps the code performed
+                (git/file operations, service calls). Never written by an AI provider.
+    ai        — raw, untouched text from an AI provider, if one was consulted.
+    summary   — a single human-readable line, always present.
+    """
+
+    summary: str
+    execution: list[str] | None = None
+    ai: str | None = None
     should_exit: bool = False
     theme: str | None = None
 
@@ -107,7 +117,7 @@ class CommandRegistry:
     async def execute(self, raw_input: str, ctx: CommandContext) -> CommandResult:
         parts = raw_input.strip().split()
         if not parts:
-            return CommandResult(message="")
+            return CommandResult(summary="")
 
         name, args = parts[0], parts[1:]
         command = self.get(name)

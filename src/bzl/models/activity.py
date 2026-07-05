@@ -6,3 +6,4 @@ class ActivityLogEntry(BaseModel):
     source: str
     message: str
     level: str = "info"
+    section: str = "summary"

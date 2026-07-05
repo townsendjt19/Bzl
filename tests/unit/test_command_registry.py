@@ -102,19 +102,19 @@ def registry():
 
 async def test_help_lists_all_commands(registry, ctx):
     result = await registry.execute("help", ctx)
-    assert "status" in result.message
-    assert "exit" in result.message
+    assert "status" in result.summary
+    assert "exit" in result.summary
 
 
 async def test_status_reports_project_and_providers(registry, ctx):
     result = await registry.execute("status", ctx)
-    assert "project: demo" in result.message
-    assert "ollama" in result.message
+    assert "project: demo" in result.summary
+    assert "ollama" in result.summary
 
 
 async def test_projects_lists_configured_projects(registry, ctx):
     result = await registry.execute("projects", ctx)
-    assert "demo" in result.message
+    assert "demo" in result.summary
 
 
 async def test_exit_signals_should_exit(registry, ctx):
@@ -136,43 +136,47 @@ async def test_clear_empties_activity_log(registry, ctx):
 
 async def test_chat_returns_provider_response(registry, ctx):
     result = await registry.execute("chat hello there", ctx)
-    assert "[fake:ollama]" in result.message
-    assert "history=0" in result.message
+    assert "[fake:ollama]" in result.ai
+    assert "history=0" in result.ai
+    assert result.summary == "received response from ollama"
+    assert any("sent message to provider" in line for line in result.execution)
 
 
 async def test_chat_feeds_prior_turns_as_history(registry, ctx):
     await registry.execute("chat first message", ctx)
     result = await registry.execute("chat second message", ctx)
-    assert "history=2" in result.message
+    assert "history=2" in result.ai
 
 
 async def test_chat_without_message_shows_usage(registry, ctx):
     result = await registry.execute("chat", ctx)
-    assert "usage" in result.message
+    assert "usage" in result.summary
+    assert result.ai is None
+    assert result.execution is None
 
 
 async def test_history_empty_by_default(registry, ctx):
     result = await registry.execute("history", ctx)
-    assert "no conversation history" in result.message
+    assert "no conversation history" in result.summary
 
 
 async def test_history_shows_prior_turns(registry, ctx):
     await registry.execute("chat hello", ctx)
     result = await registry.execute("history", ctx)
-    assert "user: hello" in result.message
-    assert "assistant:" in result.message
+    assert "user: hello" in result.summary
+    assert "assistant:" in result.summary
 
 
 async def test_history_clear_empties_it(registry, ctx):
     await registry.execute("chat hello", ctx)
     await registry.execute("history clear", ctx)
     result = await registry.execute("history", ctx)
-    assert "no conversation history" in result.message
+    assert "no conversation history" in result.summary
 
 
 async def test_switch_changes_active_project_and_git_cwd(registry, ctx):
     result = await registry.execute("switch other", ctx)
-    assert "switched to other" in result.message
+    assert "switched to other" in result.summary
     assert ctx.active_project.name == "other"
     expected_path, _exists = ctx.project_service.resolve_path(ctx.active_project)
     assert ctx.git_service.cwd == expected_path
@@ -193,17 +197,17 @@ async def test_switch_unknown_project_raises(registry, ctx):
 async def test_recent_lists_switched_projects(registry, ctx):
     await registry.execute("switch other", ctx)
     result = await registry.execute("recent", ctx)
-    assert "other" in result.message
+    assert "other" in result.summary
 
 
 async def test_recent_empty_by_default(registry, ctx):
     result = await registry.execute("recent", ctx)
-    assert "no recent projects" in result.message
+    assert "no recent projects" in result.summary
 
 
 async def test_theme_shows_current_by_default(registry, ctx):
     result = await registry.execute("theme", ctx)
-    assert "textual-dark" in result.message
+    assert "textual-dark" in result.summary
 
 
 async def test_theme_sets_and_persists(registry, ctx):
@@ -214,33 +218,37 @@ async def test_theme_sets_and_persists(registry, ctx):
 
 async def test_review_reports_no_changes_on_clean_repo(registry, ctx):
     result = await registry.execute("review", ctx)
-    assert result.message == "no changes to review"
+    assert result.summary == "no changes to review"
+    assert result.ai is None
+    assert result.execution is None
 
 
 async def test_review_sends_diff_to_provider(registry, ctx):
     (ctx.git_service.cwd / "README.md").write_text("hello world\n", encoding="utf-8")
     result = await registry.execute("review", ctx)
-    assert "[fake:ollama]" in result.message
-    assert "hello world" in result.message
+    assert "[fake:ollama]" in result.ai
+    assert "hello world" in result.ai
+    assert result.summary == "review complete via ollama"
+    assert any("sent diff to provider" in line for line in result.execution)
 
 
 async def test_review_includes_memory_notes(registry, ctx):
     (ctx.git_service.cwd / "README.md").write_text("hello world\n", encoding="utf-8")
     ctx.memory_service.add_note("demo", "this project uses tabs, not spaces")
     result = await registry.execute("review", ctx)
-    assert "this project uses tabs, not spaces" in result.message
+    assert "this project uses tabs, not spaces" in result.ai
 
 
 async def test_review_not_a_git_repo(registry, ctx):
     other_path, _exists = ctx.project_service.resolve_path(ctx.project_service.get_project("other"))
     ctx.git_service.set_cwd(other_path)
     result = await registry.execute("review", ctx)
-    assert result.message == "not a git repository"
+    assert result.summary == "not a git repository"
 
 
 async def test_commit_reports_nothing_to_commit_on_clean_repo(registry, ctx):
     result = await registry.execute("commit", ctx)
-    assert result.message == "nothing to commit"
+    assert result.summary == "nothing to commit"
 
 
 async def test_commit_stages_and_commits_with_generated_message(registry, ctx):
@@ -249,7 +257,10 @@ async def test_commit_stages_and_commits_with_generated_message(registry, ctx):
 
     result = await registry.execute("commit", ctx)
 
-    assert result.message.startswith("committed: [fake:ollama]")
+    assert result.summary.startswith("committed: [fake:ollama]")
+    assert "[fake:ollama]" in result.ai
+    assert any("staged all changes" in line for line in result.execution)
+    assert any("committed staged changes with message" in line for line in result.execution)
     log_after = ctx.git_service.get_recent_log()
     assert len(log_after) == len(log_before) + 1
     assert ctx.git_service.get_status().is_clean
@@ -257,45 +268,50 @@ async def test_commit_stages_and_commits_with_generated_message(registry, ctx):
 
 async def test_memory_empty_by_default(registry, ctx):
     result = await registry.execute("memory", ctx)
-    assert "no memory notes yet" in result.message
+    assert "no memory notes yet" in result.summary
 
 
 async def test_memory_add_and_list(registry, ctx):
     await registry.execute("memory add uses pydantic v2", ctx)
     result = await registry.execute("memory", ctx)
-    assert "uses pydantic v2" in result.message
+    assert "uses pydantic v2" in result.summary
 
 
 async def test_memory_add_without_note_shows_usage(registry, ctx):
     result = await registry.execute("memory add", ctx)
-    assert "usage" in result.message
+    assert "usage" in result.summary
 
 
 async def test_memory_clear_empties_it(registry, ctx):
     await registry.execute("memory add uses pydantic v2", ctx)
     await registry.execute("memory clear", ctx)
     result = await registry.execute("memory", ctx)
-    assert "no memory notes yet" in result.message
+    assert "no memory notes yet" in result.summary
 
 
 async def test_memory_is_injected_into_chat_context(registry, ctx):
     await registry.execute("memory add remember this fact", ctx)
     result = await registry.execute("chat hello", ctx)
-    assert "history=1" in result.message
+    assert "history=1" in result.ai
 
 
 async def test_switch_runs_startup_commands(registry, ctx):
-    await registry.execute("switch auto", ctx)
-    messages = [e.message for e in ctx.activity_log.all()]
-    assert any("echo hello-startup" in m for m in messages)
-    assert any("hello-startup" in m for m in messages)
+    result = await registry.execute("switch auto", ctx)
+    assert result.execution is not None
+    assert any("echo hello-startup" in line for line in result.execution)
+    assert any("hello-startup" in line for line in result.execution)
+
+
+async def test_switch_without_startup_commands_has_no_execution(registry, ctx):
+    result = await registry.execute("switch other", ctx)
+    assert result.execution is None
 
 
 def test_duplicate_registration_raises():
     reg = CommandRegistry()
 
     async def handler(ctx: CommandContext, args: list[str]) -> CommandResult:
-        return CommandResult(message="")
+        return CommandResult(summary="")
 
     from bzl.commands.registry import Command
 

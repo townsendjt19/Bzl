@@ -63,7 +63,7 @@ def build_context() -> CommandContext:
     automation_service = AutomationService()
     if active is not None and active.startup_commands:
         for line in automation_service.run_startup_commands(active.startup_commands, git_cwd):
-            activity_log.add("automation", line)
+            activity_log.add("automation", line, section="execution")
 
     providers_config = load_providers_config(resolve_providers_config_file())
     provider_registry = ProviderRegistry()
@@ -104,7 +104,7 @@ def build_app() -> "BzlApp":
 
     ctx = build_context()
     registry = build_command_registry()
-    ctx.activity_log.add("bzl", "Bzl started")
+    ctx.activity_log.add("bzl", "Bzl started", section="system")
     return BzlApp(ctx=ctx, command_registry=registry)
 
 
