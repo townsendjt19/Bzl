@@ -3,10 +3,6 @@ from textual.widgets import Static
 TEAL = "#3ED6C4"
 VIOLET = "#7B61FF"
 
-# Compact 2-line "BZL" mark for the header bar.
-HEADER_LOGO_LINE_1 = "▛▀▜ ▄▄▟ ▌  "
-HEADER_LOGO_LINE_2 = "▙▄▟ ▙▄▄ ▙▄▄"
-
 # Larger 5-line "BZL" wordmark for the startup splash.
 SPLASH_LOGO_ROWS = [
     "████  █████ █    ",
@@ -18,10 +14,15 @@ SPLASH_LOGO_ROWS = [
 
 
 class LogoHeader(Static):
-    """Compact block-character 'BZL' mark shown alongside the header."""
+    """Compact 'BZL' mark shown alongside the header.
+
+    Pixel-art letterforms need at least 5 rows to read as letters (see
+    SPLASH_LOGO_ROWS) — at 2 rows the quadrant-block glyphs collapse into an
+    illegible blob, so the compact mark uses plain bold text instead.
+    """
 
     def __init__(self, id: str | None = None) -> None:
-        text = f"[{TEAL}]{HEADER_LOGO_LINE_1}[/]\n[{VIOLET}]{HEADER_LOGO_LINE_2}[/]"
+        text = f"[bold {TEAL}]B[/][bold {VIOLET}]Z[/][bold {TEAL}]L[/]"
         super().__init__(text, id=id)
 
 

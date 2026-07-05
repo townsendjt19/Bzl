@@ -5,7 +5,7 @@
 }
 
 #logo-header {
-    height: 2;
+    height: 1;
     margin-top: 1;
     padding: 0 1;
 }
