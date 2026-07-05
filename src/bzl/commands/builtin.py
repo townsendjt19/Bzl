@@ -54,6 +54,33 @@ def register_all(registry: CommandRegistry) -> None:
             )
         )
 
+    @registry.command("switch", "Switch the active project", aliases=("use",))
+    async def switch_command(ctx: CommandContext, args: list[str]) -> CommandResult:
+        if not args:
+            return CommandResult(message="usage: switch <project-name>")
+        name = args[0]
+        ctx.project_service.select_project(name)
+        project = ctx.project_service.get_project(name)
+        path, _exists = ctx.project_service.resolve_path(project)
+        ctx.git_service.set_cwd(path)
+        ctx.state_service.record_project_switch(name)
+        return CommandResult(message=f"switched to {name}")
+
+    @registry.command("recent", "List recently switched-to projects")
+    async def recent_command(ctx: CommandContext, args: list[str]) -> CommandResult:
+        names = ctx.state_service.state.recent_projects
+        if not names:
+            return CommandResult(message="no recent projects yet")
+        return CommandResult(message="\n".join(names))
+
+    @registry.command("theme", "Show or set the color theme")
+    async def theme_command(ctx: CommandContext, args: list[str]) -> CommandResult:
+        if not args:
+            return CommandResult(message=f"current: {ctx.state_service.state.theme}")
+        name = args[0]
+        ctx.state_service.set_theme(name)
+        return CommandResult(message=f"theme set to {name}", theme=name)
+
     @registry.command("clear", "Clear the activity log")
     async def clear_command(ctx: CommandContext, args: list[str]) -> CommandResult:
         ctx.activity_log.clear()

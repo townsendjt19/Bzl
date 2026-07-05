@@ -1,11 +1,13 @@
 from bzl.commands.registry import CommandContext
 from bzl.core.bootstrap import build_command_registry
 from bzl.models.project import ProjectConfig, ProjectsFile
+from bzl.models.state import AppState
 from bzl.providers.ollama_provider import OllamaProvider
 from bzl.services.activity_log_service import ActivityLogService
 from bzl.services.git_service import GitService
 from bzl.services.project_service import ProjectService
 from bzl.services.provider_registry import ProviderRegistry
+from bzl.services.state_service import StateService
 from bzl.ui.app import BzlApp
 from bzl.ui.widgets.activity_log import ActivityLog
 from bzl.ui.widgets.git_panel import GitPanel
@@ -21,6 +23,7 @@ def _build_test_app(tmp_path) -> BzlApp:
         git_service=GitService(cwd=tmp_path),
         provider_registry=provider_registry,
         activity_log=ActivityLogService(),
+        state_service=StateService(AppState(), tmp_path / "state.local.yaml"),
         logger=__import__("logging").getLogger("test"),
     )
     return BzlApp(ctx=ctx, command_registry=build_command_registry())

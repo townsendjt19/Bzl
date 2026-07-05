@@ -29,7 +29,9 @@ class DashboardScreen(Screen[None]):
                 yield GitPanel(id="git-panel")
             yield ProvidersPanel(id="providers-panel")
             yield ActivityLog(id="activity-log")
-            yield CommandBar(id="command-bar")
+            yield CommandBar(
+                command_names=[c.name for c in self.command_registry.all()], id="command-bar"
+            )
         yield Footer()
 
     def on_mount(self) -> None:
@@ -92,6 +94,15 @@ class DashboardScreen(Screen[None]):
 
         if result.message:
             self.ctx.activity_log.add("bzl", result.message)
+
+        if result.theme:
+            try:
+                self.app.theme = result.theme
+            except Exception:  # noqa: BLE001 - invalid theme name must not crash the UI
+                self.ctx.activity_log.add(
+                    "error", f"unknown theme: {result.theme!r}", level="error"
+                )
+
         self.refresh_all()
 
         if result.should_exit:

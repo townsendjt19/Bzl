@@ -9,3 +9,4 @@ dist/
 build/
 
 configs/projects.local.yaml
+configs/state.local.yaml

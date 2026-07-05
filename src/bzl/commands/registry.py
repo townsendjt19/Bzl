@@ -7,6 +7,7 @@ from bzl.services.activity_log_service import ActivityLogService
 from bzl.services.git_service import GitService
 from bzl.services.project_service import ProjectService
 from bzl.services.provider_registry import ProviderRegistry
+from bzl.services.state_service import StateService
 
 
 @dataclass
@@ -21,6 +22,7 @@ class CommandContext:
     git_service: GitService
     provider_registry: ProviderRegistry
     activity_log: ActivityLogService
+    state_service: StateService
     logger: logging.Logger
 
     @property
@@ -32,6 +34,7 @@ class CommandContext:
 class CommandResult:
     message: str
     should_exit: bool = False
+    theme: str | None = None
 
 
 CommandHandler = Callable[[CommandContext, list[str]], Awaitable[CommandResult]]

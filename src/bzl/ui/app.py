@@ -13,4 +13,9 @@ class BzlApp(App[None]):
         self.command_registry = command_registry
 
     def on_mount(self) -> None:
+        persisted_theme = self.ctx.state_service.state.theme
+        try:
+            self.theme = persisted_theme
+        except Exception:  # noqa: BLE001 - invalid persisted theme must not crash startup
+            self.ctx.logger.warning("unknown persisted theme: %r", persisted_theme)
         self.push_screen(DashboardScreen(self.ctx, self.command_registry))

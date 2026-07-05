@@ -11,10 +11,10 @@
 ---
 
 ## v0.2.0
-- [ ] Project switcher
-- [ ] Recent projects
-- [ ] Better command UX
-- [ ] Theme system
+- [x] Project switcher
+- [x] Recent projects
+- [x] Better command UX
+- [x] Theme system
 
 ---
 

@@ -19,3 +19,8 @@ def resolve_configs_dir() -> Path:
             return candidate
 
     return Path.cwd() / "configs"
+
+
+def resolve_state_file() -> Path:
+    """Resolve the path to the gitignored local state file (recent projects, theme, ...)."""
+    return resolve_configs_dir() / "state.local.yaml"

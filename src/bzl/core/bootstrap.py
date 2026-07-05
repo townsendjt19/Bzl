@@ -3,16 +3,17 @@ from typing import TYPE_CHECKING
 
 from bzl.commands import builtin, stubs
 from bzl.commands.registry import CommandContext, CommandRegistry
-from bzl.config.loader import load_merged_projects
-from bzl.config.paths import resolve_configs_dir
+from bzl.config.loader import load_merged_projects, load_state
+from bzl.config.paths import resolve_configs_dir, resolve_state_file
 from bzl.core.logging import configure_logging
 from bzl.providers.chatgpt_provider import ChatGPTProvider
 from bzl.providers.claude_code_provider import ClaudeCodeProvider
 from bzl.providers.ollama_provider import OllamaProvider
 from bzl.services.activity_log_service import ActivityLogService
 from bzl.services.git_service import GitService
-from bzl.services.project_service import ProjectService
+from bzl.services.project_service import ProjectNotFoundError, ProjectService
 from bzl.services.provider_registry import ProviderRegistry
+from bzl.services.state_service import StateService
 
 if TYPE_CHECKING:
     from bzl.ui.app import BzlApp
@@ -31,6 +32,14 @@ def build_context() -> CommandContext:
     projects_file = load_merged_projects(configs_dir)
     project_service = ProjectService(projects_file)
 
+    state = load_state(resolve_state_file())
+    if state.active_project is not None:
+        try:
+            project_service.select_project(state.active_project)
+        except ProjectNotFoundError:
+            pass
+    state_service = StateService(state, resolve_state_file())
+
     active = project_service.active_project
     git_cwd = project_service.resolve_path(active)[0] if active else configs_dir.parent
     git_service = GitService(cwd=git_cwd)
@@ -46,6 +55,7 @@ def build_context() -> CommandContext:
         git_service=git_service,
         provider_registry=provider_registry,
         activity_log=activity_log,
+        state_service=state_service,
         logger=logger,
     )
 

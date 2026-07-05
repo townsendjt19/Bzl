@@ -5,6 +5,7 @@ import yaml
 from pydantic import ValidationError
 
 from bzl.models.project import ProjectConfig, ProjectsFile
+from bzl.models.state import AppState
 
 
 class ConfigError(Exception):
@@ -71,3 +72,19 @@ def load_merged_projects(configs_dir: Path) -> ProjectsFile:
         env = overrides.get(project.name, {})
         merged.append(project.model_copy(update={"environment": env}))
     return ProjectsFile(projects=merged)
+
+
+def load_state(path: Path) -> AppState:
+    """Load the gitignored local state file. Missing file means default state."""
+    if not path.exists():
+        return AppState()
+    data = _read_yaml(path)
+    try:
+        return AppState.model_validate(data)
+    except ValidationError as exc:
+        raise ConfigError(f"invalid state file {path}: {exc}") from exc
+
+
+def save_state(path: Path, state: AppState) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(state.model_dump()), encoding="utf-8")

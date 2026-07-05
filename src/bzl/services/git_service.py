@@ -22,6 +22,9 @@ class GitService:
         self.cwd = cwd
         self._git_available = True
 
+    def set_cwd(self, cwd: Path) -> None:
+        self.cwd = cwd
+
     def _run(self, args: list[str]) -> subprocess.CompletedProcess[str] | None:
         argv = ["git", *args]
         try:
