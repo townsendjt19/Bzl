@@ -39,3 +39,8 @@ def resolve_conversations_file() -> Path:
 def resolve_memory_file() -> Path:
     """Resolve the path to the gitignored local AI project memory file."""
     return resolve_configs_dir() / "memory.local.yaml"
+
+
+def resolve_log_file() -> Path:
+    """Resolve the path to the gitignored local log file."""
+    return resolve_configs_dir() / "bzl.local.log"

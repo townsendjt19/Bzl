@@ -1,3 +1,18 @@
+#splash-banner {
+    height: 5;
+    content-align: center middle;
+}
+
+#logo-header {
+    height: 2;
+    padding: 0 1;
+}
+
+#thinking-indicator {
+    height: 1;
+    padding: 0 1;
+}
+
 #top-row {
     height: auto;
 }

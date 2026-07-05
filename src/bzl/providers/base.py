@@ -10,6 +10,7 @@ class AIProvider(Protocol):
     """Pure async interface for an AI provider. No dependency on services or UI."""
 
     name: str
+    is_stub: bool
 
     async def send_message(
         self,

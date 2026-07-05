@@ -1,8 +1,11 @@
 import asyncio
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
 from bzl.models.provider import ProviderMessage, ProviderResponse
+
+logger = logging.getLogger(__name__)
 
 SubprocessRunner = Callable[..., Awaitable["asyncio.subprocess.Process"]]
 
@@ -16,6 +19,7 @@ def _build_prompt(context: list[ProviderMessage] | None, message: str) -> str:
 
 class ClaudeCodeProvider:
     name = "claude_code"
+    is_stub = False
 
     def __init__(
         self,
@@ -56,6 +60,17 @@ class ClaudeCodeProvider:
         except TimeoutError:
             process.kill()
             await process.wait()
+            stderr_output = ""
+            try:
+                stderr_bytes = await asyncio.wait_for(process.stderr.read(), timeout=2.0)
+                stderr_output = stderr_bytes.decode(errors="replace").strip()
+            except Exception:
+                pass
+            logger.warning(
+                "claude CLI timed out after %ss; stderr: %s",
+                self.timeout,
+                stderr_output or "<empty>",
+            )
             return ProviderResponse(
                 content=f"claude CLI timed out after {self.timeout}s with no response",
                 provider=self.name,

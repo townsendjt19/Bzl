@@ -17,6 +17,7 @@ def _build_messages(
 
 class OllamaProvider:
     name = "ollama"
+    is_stub = False
 
     def __init__(
         self,

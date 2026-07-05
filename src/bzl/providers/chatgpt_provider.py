@@ -7,6 +7,7 @@ from bzl.models.provider import ProviderMessage, ProviderResponse
 
 class ChatGPTProvider:
     name = "chatgpt"
+    is_stub = True
 
     async def send_message(
         self,

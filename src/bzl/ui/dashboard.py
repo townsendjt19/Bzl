@@ -11,8 +11,10 @@ from bzl.ui.widgets.activity_log import ActivityLog
 from bzl.ui.widgets.command_bar import CommandBar
 from bzl.ui.widgets.compose_modal import ComposeModal
 from bzl.ui.widgets.git_panel import GitPanel
+from bzl.ui.widgets.logo import LogoHeader, SplashBanner
 from bzl.ui.widgets.project_panel import ProjectPanel
 from bzl.ui.widgets.providers_panel import ProvidersPanel
+from bzl.ui.widgets.thinking_indicator import ThinkingIndicator
 
 
 class DashboardScreen(Screen[None]):
@@ -26,10 +28,13 @@ class DashboardScreen(Screen[None]):
     def compose(self) -> Iterator[Widget]:
         yield Header()
         with Vertical(id="dashboard-body"):
+            yield SplashBanner(id="splash-banner")
+            yield LogoHeader(id="logo-header")
             with Horizontal(id="top-row"):
                 yield ProjectPanel(id="project-panel")
                 yield GitPanel(id="git-panel")
             yield ProvidersPanel(id="providers-panel")
+            yield ThinkingIndicator(id="thinking-indicator")
             yield ActivityLog(id="activity-log")
             yield CommandBar(
                 command_names=[c.name for c in self.command_registry.all()], id="command-bar"
@@ -73,7 +78,9 @@ class DashboardScreen(Screen[None]):
         panel = self.query_one("#providers-panel", ProvidersPanel)
         project = self.ctx.active_project
         preferred = project.preferred_provider if project else None
-        panel.show_providers(self.ctx.provider_registry.list_providers(), preferred)
+        names = self.ctx.provider_registry.list_providers()
+        providers = [(name, self.ctx.provider_registry.get(name).is_stub) for name in names]
+        panel.show_providers(providers, preferred)
 
     def _refresh_activity_log(self) -> None:
         log = self.query_one("#activity-log", ActivityLog)
@@ -97,6 +104,9 @@ class DashboardScreen(Screen[None]):
         def handle_result(result: str | None) -> None:
             if result is not None:
                 self.query_one("#command-bar", CommandBar).set_value_and_focus(result)
+            # The modal covers the full screen while open; force a full repaint on
+            # return so no stale cells from it linger over the dashboard/command bar.
+            self.refresh(layout=True)
 
         self.app.push_screen(ComposeModal(event.text), handle_result)
 
@@ -107,6 +117,8 @@ class DashboardScreen(Screen[None]):
 
         self.ctx.activity_log.add("command", f"> {text}", section="system")
         self._refresh_activity_log()
+        indicator = self.query_one("#thinking-indicator", ThinkingIndicator)
+        indicator.start()
         try:
             result = await self.command_registry.execute(text, self.ctx)
         except Exception as exc:  # noqa: BLE001 - UI must never crash on a bad command
@@ -114,6 +126,8 @@ class DashboardScreen(Screen[None]):
             self.ctx.activity_log.add("error", str(exc), level="error", section="system")
             self.refresh_all()
             return
+        finally:
+            indicator.stop()
 
         # Logged in this fixed order — execution (mechanical trace) before ai
         # (raw provider output) before summary — so AI output never interleaves
